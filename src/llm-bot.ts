@@ -1,284 +1,191 @@
 import { OrderType, Side } from "@polymarket/clob-client";
 import { sleep } from "bun";
 import { error, log } from "console";
-import dayjs from "dayjs";
-import { and, desc, eq, ilike } from "drizzle-orm";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
 import { db } from "./db";
-import { llmLeaderboardSchema, marketSchema, tokenSchema } from "./db/schema";
+import { marketSchema, tokenSchema } from "./db/schema"; // Removed llmLeaderboardSchema
 import { USDCE_DIGITS } from "./polymarket/constants";
 import { checkAndClaimResolvedMarkets } from "./polymarket/markets";
 import { extractAssetIdsFromTrades } from "./utils";
 import { portfolioState } from "./utils/portfolio-state";
+import axios from "axios"; // Added axios for HTTP requests
+
+// Configuration from environment variables
+const DRY_RUN = process.env.DRY_RUN?.toLowerCase() === 'true';
+const USER_DEFINED_TARGET_PRICE = parseFloat(process.env.USER_DEFINED_TARGET_PRICE || '0');
+const TRADE_BUFFER_USD = parseFloat(process.env.TRADE_BUFFER_USD || '0');
+const POLYMARKET_MARKET_ID = process.env.POLYMARKET_MARKET_ID;
+const TEST_TOKEN_ID_UP = process.env.TEST_TOKEN_ID_UP;
+const TEST_TOKEN_ID_DOWN = process.env.TEST_TOKEN_ID_DOWN;
+const POLL_INTERVAL_SECONDS = parseInt(process.env.POLL_INTERVAL_SECONDS || '10');
+const ORDER_PRICE_BUY = parseFloat(process.env.ORDER_PRICE_BUY || '0.98');
+const ORDER_PRICE_SELL = parseFloat(process.env.ORDER_PRICE_SELL || '0.02');
+const MIN_TRADE_AMOUNT_USD = parseFloat(process.env.MIN_TRADE_AMOUNT_USD || '1.0');
+const FIXED_TRADE_USD_AMOUNT = parseFloat(process.env.FIXED_TRADE_USD_AMOUNT || '10');
+const TRADE_SIZE_PERCENT = parseFloat(process.env.TRADE_SIZE_PERCENT || '0');
 
 const MINIMUM_BALANCE = BigInt(parseUnits("1", USDCE_DIGITS).toString());
 
-async function initializeCurrentPosition(assetIds: string[]): Promise<void> {
+// Simplified initializeCurrentPosition - focuses on UP/DOWN tokens
+async function initializeCurrentPosition(assetIds: string[]): Promise<string | null> {
   try {
-    let currentAssetId = null;
-    let highestBalance = BigInt(0);
+    let currentPosition: string | null = null;
 
-    for (const assetId of assetIds) {
-      const balance = await portfolioState.fetchAssetBalanceIfNeeded(assetId);
-      const balanceAmount = BigInt(balance);
-
-      if (balanceAmount > MINIMUM_BALANCE) {
-        log(
-          `Found position with token ID ${assetId}, balance: ${formatUnits(
-            balance,
-            USDCE_DIGITS
-          )}`
-        );
-        if (balanceAmount > highestBalance) {
-          highestBalance = balanceAmount;
-          currentAssetId = assetId;
-        }
+    if (TEST_TOKEN_ID_UP && assetIds.includes(TEST_TOKEN_ID_UP)) {
+      const balance = await portfolioState.fetchAssetBalanceIfNeeded(TEST_TOKEN_ID_UP);
+      if (BigInt(balance) > MINIMUM_BALANCE) {
+        log(`Found active position: 'UP' (${formatUnits(balance, USDCE_DIGITS)} shares)`);
+        currentPosition = 'UP';
       }
     }
 
-    if (!currentAssetId) {
-      log(`No active positions found above minimum threshold`);
-      portfolioState.currentModelOrg = null;
-      return;
+    if (TEST_TOKEN_ID_DOWN && assetIds.includes(TEST_TOKEN_ID_DOWN)) {
+      const balance = await portfolioState.fetchAssetBalanceIfNeeded(TEST_TOKEN_ID_DOWN);
+      if (BigInt(balance) > MINIMUM_BALANCE) {
+        log(`Found active position: 'DOWN' (${formatUnits(balance, USDCE_DIGITS)} shares)`);
+        currentPosition = 'DOWN';
+      }
     }
 
-    const token = await db
-      .select()
-      .from(tokenSchema)
-      .where(eq(tokenSchema.tokenId, currentAssetId))
-      .limit(1)
-      .then((results) => results[0]);
-
-    if (!token?.marketId) {
-      log(`Could not find market for token ID ${currentAssetId}`);
-      portfolioState.currentModelOrg = null;
-      return;
+    if (!currentPosition) {
+      log(`No active positions found above minimum threshold for UP/DOWN tokens.`);
     }
-
-    const market = await db
-      .select()
-      .from(marketSchema)
-      .where(eq(marketSchema.id, token.marketId))
-      .limit(1)
-      .then((results) => results[0]);
-
-    const slugMatch = market?.marketSlug.match(
-      /will-([^-]+)-have-the-top-ai-model/
-    );
-    if (slugMatch && slugMatch[1]) {
-      portfolioState.currentModelOrg = slugMatch[1].toLowerCase();
-      log(
-        `✅ Initialized current position: ${
-          slugMatch[1]
-        } (Balance: ${formatUnits(highestBalance.toString(), USDCE_DIGITS)})`
-      );
-    } else {
-      log(
-        `⚠️ Could not extract company from market slug: ${market?.marketSlug}`
-      );
-      portfolioState.currentModelOrg = null;
-    }
+    return currentPosition;
   } catch (err) {
     error("Error initializing position:", err);
     process.exit(1);
   }
 }
 
-async function sellAllPositions(
-  assetIds: string[],
-  topModelTokenId: string | null = null
-): Promise<void> {
-  await portfolioState.clobClient.cancelAll();
-
-  log("Starting to sell positions...");
-
-  let anySold = false;
-
-  for (const assetId of assetIds) {
-    // Skip selling if this is the token for the current top model
-    if (topModelTokenId && assetId === topModelTokenId) {
-      log(`Keeping position ${assetId} (current top model)`);
-      continue;
-    }
-
-    const balance = await portfolioState.fetchAssetBalanceIfNeeded(assetId);
-    const balanceAmount = BigInt(balance);
-
-    if (balanceAmount > MINIMUM_BALANCE) {
-      try {
-        const formattedBalance = formatUnits(balance, USDCE_DIGITS);
-        log(`Selling position ${assetId}, amount: ${formattedBalance}`);
-
-        const sellOrder = await portfolioState.clobClient.createMarketOrder({
-          tokenID: assetId,
-          amount: parseFloat(formattedBalance),
-          side: Side.SELL,
-        });
-
-        await portfolioState.clobClient.postOrder(sellOrder, OrderType.FOK);
-        anySold = true;
-
-        // Update the cached balance after selling
-        portfolioState.updateAssetBalance(assetId, "0");
-      } catch (err) {
-        error(`Error selling ${assetId}:`, err);
-      }
-    } else if (balanceAmount > 0) {
-      log(
-        `Skipping dust position ${assetId}, amount: ${formatUnits(
-          balance,
-          USDCE_DIGITS
-        )}`
-      );
-    }
-  }
-
-  // Wait for blockchain state to update if we sold anything
-  if (anySold) {
-    log("Waiting for balances to update after selling...");
-    await sleep(3000); // Wait 3 seconds for balance to update
-
-    // Only refresh collateral instead of clearing everything
-    portfolioState.updateCollateralBalance("0");
+async function sellPosition(tokenId: string, amount: string): Promise<boolean> {
+  try {
+    log(`Selling position ${tokenId}, amount: ${formatUnits(amount, USDCE_DIGITS)}`);
+    const sellOrder = await portfolioState.clobClient.createMarketOrder({
+      tokenID: tokenId,
+      amount: parseFloat(formatUnits(amount, USDCE_DIGITS)),
+      side: Side.SELL,
+    });
+    await portfolioState.clobClient.postOrder(sellOrder, OrderType.FOK);
+    portfolioState.updateAssetBalance(tokenId, "0"); // Update cached balance
+    log(`Successfully sold ${tokenId}`);
+    return true;
+  } catch (err) {
+    error(`Error selling ${tokenId}:`, err);
+    return false;
   }
 }
 
-async function buyPosition(
-  tokenId: string,
-  organization: string,
-  retries = 30
-): Promise<boolean> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    // Use cached collateral balance or fetch if needed
-    if (attempt > 1 || portfolioState.collateralBalance === "0") {
-      await portfolioState.fetchCollateralBalance();
-    }
+async function buyPosition(tokenId: string, amountUSD: number): Promise<boolean> {
+  // Use cached collateral balance or fetch if needed
+  await portfolioState.fetchCollateralBalance();
 
-    if (BigInt(portfolioState.collateralBalance) > 0) {
-      try {
-        log(
-          `Buying ${organization}, amount: ${formatUnits(
-            portfolioState.collateralBalance,
-            USDCE_DIGITS
-          )} (attempt ${attempt}/${retries})`
-        );
-        const buyOrder = await portfolioState.clobClient.createMarketOrder({
-          tokenID: tokenId,
-          amount: parseFloat(
-            formatUnits(portfolioState.collateralBalance, USDCE_DIGITS)
-          ),
-          side: Side.BUY,
-        });
-        await portfolioState.clobClient.postOrder(buyOrder, OrderType.FOK);
-        portfolioState.currentModelOrg = organization;
-
-        // Update balances after purchase
-        portfolioState.updateCollateralBalance("0");
-
-        // Mark that we need to fetch the new token balance
-        portfolioState.updateAssetBalance(tokenId, "refresh_needed");
-
-        log(`Successfully bought ${organization}`);
-        return true;
-      } catch (err) {
-        error(
-          `Error buying ${organization} (attempt ${attempt}/${retries}):`,
-          err
-        );
-      }
-    }
-
-    log(`No collateral available for buying. Waiting before retry...`);
-    await sleep(1000);
+  if (BigInt(portfolioState.collateralBalance) === BigInt(0)) {
+    log(`No collateral available for buying.`);
+    return false;
   }
 
-  log(`Failed to buy ${organization} after ${retries} attempts`);
-  return false;
+  const collateralAmount = parseFloat(formatUnits(portfolioState.collateralBalance, USDCE_DIGITS));
+  let tradeAmount = amountUSD;
+
+  if (TRADE_SIZE_PERCENT > 0) {
+    tradeAmount = collateralAmount * (TRADE_SIZE_PERCENT / 100.0);
+  } else {
+    tradeAmount = FIXED_TRADE_USD_AMOUNT;
+  }
+
+  if (tradeAmount > collateralAmount) {
+    tradeAmount = collateralAmount;
+  }
+
+  if (tradeAmount < MIN_TRADE_AMOUNT_USD) {
+    log(`Trade amount $${tradeAmount.toFixed(2)} is below minimum of $${MIN_TRADE_AMOUNT_USD}. Skipping.`);
+    return false;
+  }
+
+  try {
+    log(`Buying token ${tokenId}, amount: $${tradeAmount.toFixed(2)}`);
+    const buyOrder = await portfolioState.clobClient.createMarketOrder({
+      tokenID: tokenId,
+      amount: tradeAmount,
+      side: Side.BUY,
+    });
+    await portfolioState.clobClient.postOrder(buyOrder, OrderType.FOK);
+    portfolioState.updateCollateralBalance("0"); // Update collateral balance after purchase
+    portfolioState.updateAssetBalance(tokenId, "refresh_needed"); // Mark token balance for refresh
+    log(`Successfully bought token ${tokenId}`);
+    return true;
+  } catch (err) {
+    error(`Error buying token ${tokenId}:`, err);
+    return false;
+  }
+}
+
+async function getLiveBtcPriceFromBinance(): Promise<number | null> {
+  try {
+    const response = await axios.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", { timeout: 10000 });
+    return parseFloat(response.data.price);
+  } catch (e) {
+    error(`Error fetching price from Binance: ${e}`);
+    return null;
+  }
 }
 
 async function runCycle(assetIds: string[]): Promise<void> {
   try {
-    await initializeCurrentPosition(assetIds);
+    if (!USER_DEFINED_TARGET_PRICE) {
+      error("FATAL: USER_DEFINED_TARGET_PRICE not set in .env");
+      process.exit(1);
+    }
 
-    const topModel = await db
-      .select()
-      .from(llmLeaderboardSchema)
-      .orderBy(desc(llmLeaderboardSchema.arenaScore))
-      .limit(1)
-      .then((results) => results[0]);
+    const livePrice = await getLiveBtcPriceFromBinance();
+    if (livePrice === null) {
+      return;
+    }
 
-    if (!topModel) return;
+    const currentPosition = await initializeCurrentPosition(assetIds); // Get current position (UP/DOWN/null)
 
-    const topModelOrg = topModel.organization.toLowerCase();
+    const upperBound = USER_DEFINED_TARGET_PRICE + TRADE_BUFFER_USD;
+    const lowerBound = USER_DEFINED_TARGET_PRICE - TRADE_BUFFER_USD;
+
+    let desiredPosition: 'UP' | 'DOWN' | null = null;
+
+    if (livePrice > upperBound) {
+      desiredPosition = 'UP';
+    } else if (livePrice < lowerBound) {
+      desiredPosition = 'DOWN';
+    }
 
     log(
-      `Current: ${portfolioState.currentModelOrg}, Top model: ${topModelOrg}`
-    );
-    if (portfolioState.currentModelOrg === topModelOrg) {
-      log(
-        `No change in top model: ${topModel.modelName} (${topModel.organization})`
-      );
-      return;
-    }
-
-    log(
-      `🚨 Top model changed to ${topModel.modelName} (${topModel.organization})`
+      `Live BTC: $${livePrice.toFixed(2)} | Target: $${USER_DEFINED_TARGET_PRICE.toFixed(2)} | ` +
+      `Current Position: '${currentPosition || 'None'}' | Desired Position: '${desiredPosition || 'Hold'}'`
     );
 
-    const currentMonth = dayjs().format("MMM").toLowerCase();
-    const market = await db
-      .select()
-      .from(marketSchema)
-      .where(
-        and(
-          ilike(
-            marketSchema.marketSlug,
-            `%-have-the-top-ai-model-on-${currentMonth}%`
-          ),
-          eq(marketSchema.active, true),
-          eq(marketSchema.closed, false)
-        )
-      )
-      .then((markets) =>
-        markets.find((m) => m.question.toLowerCase().includes(topModelOrg))
-      );
+    if (desiredPosition && desiredPosition !== currentPosition) {
+      log(`🚨 Position change detected: From '${currentPosition || 'None'}' to '${desiredPosition}'`);
 
-    if (!market) {
-      log(`No market found for ${topModel.organization}`);
-      return;
+      // Close existing position if any
+      if (currentPosition === 'UP' && TEST_TOKEN_ID_UP) {
+        const balance = await portfolioState.fetchAssetBalanceIfNeeded(TEST_TOKEN_ID_UP);
+        if (BigInt(balance) > MINIMUM_BALANCE) {
+          await sellPosition(TEST_TOKEN_ID_UP, balance);
+          await sleep(3000); // Wait for blockchain state to update
+        }
+      } else if (currentPosition === 'DOWN' && TEST_TOKEN_ID_DOWN) {
+        const balance = await portfolioState.fetchAssetBalanceIfNeeded(TEST_TOKEN_ID_DOWN);
+        if (BigInt(balance) > MINIMUM_BALANCE) {
+          await sellPosition(TEST_TOKEN_ID_DOWN, balance);
+          await sleep(3000); // Wait for blockchain state to update
+        }
+      }
+
+      // Open new position
+      const tokenToBuy = desiredPosition === 'UP' ? TEST_TOKEN_ID_UP : TEST_TOKEN_ID_DOWN;
+      if (tokenToBuy) {
+        await buyPosition(tokenToBuy, FIXED_TRADE_USD_AMOUNT); // Use FIXED_TRADE_USD_AMOUNT for simplicity, or calculate based on TRADE_SIZE_PERCENT
+      } else {
+        error(`Missing token ID for desired position: ${desiredPosition}`);
+      }
     }
-
-    const yesToken = await db
-      .select()
-      .from(tokenSchema)
-      .where(eq(tokenSchema.marketId, market.id))
-      .then((tokens) => tokens.find((t) => t.outcome?.toLowerCase() === "yes"));
-
-    if (!yesToken?.tokenId) {
-      log(`No YES token found for market ${market.marketSlug}`);
-      return;
-    }
-
-    await sellAllPositions(assetIds, yesToken.tokenId);
-
-    // Check if we already have this position using cached data
-    const currentBalance = await portfolioState.fetchAssetBalanceIfNeeded(
-      yesToken.tokenId
-    );
-
-    // Only buy if we don't already have a significant position
-    if (BigInt(currentBalance) <= MINIMUM_BALANCE) {
-      console.log(
-        `Buying position for ${topModelOrg} (token ID: ${yesToken.tokenId})`
-      );
-      await buyPosition(yesToken.tokenId, topModelOrg);
-    } else {
-      log(`Already holding ${topModelOrg} position, no need to buy`);
-      portfolioState.currentModelOrg = topModelOrg;
-    }
-
-    // Only update collateral balance instead of clearing all caches
-    portfolioState.updateCollateralBalance("0");
   } catch (err) {
     error("Error in bot cycle:", err);
   }
@@ -286,12 +193,13 @@ async function runCycle(assetIds: string[]): Promise<void> {
 
 // Main function
 async function main(): Promise<void> {
-  let trades = await portfolioState.clobClient.getTrades();
-  let assetIds = extractAssetIdsFromTrades(trades);
-  await initializeCurrentPosition(assetIds);
+  log(`--- Starting BTC Price Bot. Target BTC Price: $${USER_DEFINED_TARGET_PRICE.toFixed(2)} ---`);
 
   while (true) {
     // Make sure to run the checkAndClaimResolvedMarkets function
+    // This is still relevant for any Polymarket activity
+    let trades = await portfolioState.clobClient.getTrades();
+    let assetIds = extractAssetIdsFromTrades(trades);
     await checkAndClaimResolvedMarkets(assetIds);
 
     await runCycle(assetIds);
@@ -300,7 +208,7 @@ async function main(): Promise<void> {
     trades = await portfolioState.clobClient.getTrades();
     assetIds = extractAssetIdsFromTrades(trades);
 
-    await sleep(100); // Wait for 1 second before the next cycle
+    await sleep(POLL_INTERVAL_SECONDS * 1000); // Wait for configured interval
   }
 }
 
