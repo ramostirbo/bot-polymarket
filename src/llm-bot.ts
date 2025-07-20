@@ -1,6 +1,5 @@
 import { OrderType, Side } from "@polymarket/clob-client";
 import { sleep } from "bun";
-import { error, log } from "console";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
 import { db } from "./db";
 import { marketSchema, tokenSchema } from "./db/schema"; // Removed llmLeaderboardSchema
@@ -9,6 +8,13 @@ import { checkAndClaimResolvedMarkets } from "./polymarket/markets";
 import { extractAssetIdsFromTrades } from "./utils";
 import { portfolioState } from "./utils/portfolio-state";
 import axios from "axios"; // Added axios for HTTP requests
+import dayjs from "dayjs"; // Import dayjs for date formatting
+import { ethers } from "ethers"; // Import ethers for utils
+
+// Custom logging functions to include timestamps
+const getTimestamp = () => dayjs().format("YYYY-MM-DD HH:mm:ss,SSS");
+const log = (message: string) => console.log(`${getTimestamp()} - INFO - ${message}`);
+const error = (message: string, err?: any) => console.error(`${getTimestamp()} - ERROR - ${message}`, err || '');
 
 // Configuration from environment variables
 const DRY_RUN = process.env.DRY_RUN?.toLowerCase() === 'true';
@@ -24,7 +30,7 @@ const MIN_TRADE_AMOUNT_USD = parseFloat(process.env.MIN_TRADE_AMOUNT_USD || '1.0
 const FIXED_TRADE_USD_AMOUNT = parseFloat(process.env.FIXED_TRADE_USD_AMOUNT || '10');
 const TRADE_SIZE_PERCENT = parseFloat(process.env.TRADE_SIZE_PERCENT || '0');
 
-const MINIMUM_BALANCE = BigInt(parseUnits("1", USDCE_DIGITS).toString());
+const MINIMUM_BALANCE = BigInt(ethers.utils.parseUnits("1", USDCE_DIGITS).toString());
 
 // Simplified initializeCurrentPosition - focuses on UP/DOWN tokens
 async function initializeCurrentPosition(assetIds: string[]): Promise<string | null> {
@@ -34,7 +40,7 @@ async function initializeCurrentPosition(assetIds: string[]): Promise<string | n
     if (TEST_TOKEN_ID_UP && assetIds.includes(TEST_TOKEN_ID_UP)) {
       const balance = await portfolioState.fetchAssetBalanceIfNeeded(TEST_TOKEN_ID_UP);
       if (BigInt(balance) > MINIMUM_BALANCE) {
-        log(`Found active position: 'UP' (${formatUnits(balance, USDCE_DIGITS)} shares)`);
+        log(`Found active position: 'UP' (${ethers.utils.formatUnits(balance, USDCE_DIGITS)} shares)`);
         currentPosition = 'UP';
       }
     }
@@ -42,7 +48,7 @@ async function initializeCurrentPosition(assetIds: string[]): Promise<string | n
     if (TEST_TOKEN_ID_DOWN && assetIds.includes(TEST_TOKEN_ID_DOWN)) {
       const balance = await portfolioState.fetchAssetBalanceIfNeeded(TEST_TOKEN_ID_DOWN);
       if (BigInt(balance) > MINIMUM_BALANCE) {
-        log(`Found active position: 'DOWN' (${formatUnits(balance, USDCE_DIGITS)} shares)`);
+        log(`Found active position: 'DOWN' (${ethers.utils.formatUnits(balance, USDCE_DIGITS)} shares)`);
         currentPosition = 'DOWN';
       }
     }
@@ -59,10 +65,10 @@ async function initializeCurrentPosition(assetIds: string[]): Promise<string | n
 
 async function sellPosition(tokenId: string, amount: string): Promise<boolean> {
   try {
-    log(`Selling position ${tokenId}, amount: ${formatUnits(amount, USDCE_DIGITS)}`);
+    log(`Selling position ${tokenId}, amount: ${ethers.utils.formatUnits(amount, USDCE_DIGITS)}`);
     const sellOrder = await portfolioState.clobClient.createMarketOrder({
       tokenID: tokenId,
-      amount: parseFloat(formatUnits(amount, USDCE_DIGITS)),
+      amount: parseFloat(ethers.utils.formatUnits(amount, USDCE_DIGITS)),
       side: Side.SELL,
     });
     await portfolioState.clobClient.postOrder(sellOrder, OrderType.FOK);
@@ -84,7 +90,7 @@ async function buyPosition(tokenId: string, amountUSD: number): Promise<boolean>
     return false;
   }
 
-  const collateralAmount = parseFloat(formatUnits(portfolioState.collateralBalance, USDCE_DIGITS));
+  const collateralAmount = parseFloat(ethers.utils.formatUnits(portfolioState.collateralBalance, USDCE_DIGITS));
   let tradeAmount = amountUSD;
 
   if (TRADE_SIZE_PERCENT > 0) {
@@ -103,7 +109,7 @@ async function buyPosition(tokenId: string, amountUSD: number): Promise<boolean>
   }
 
   try {
-    log(`Buying token ${tokenId}, amount: $${tradeAmount.toFixed(2)}`);
+    log(`Opening new position '${tokenId === TEST_TOKEN_ID_UP ? 'UP' : 'DOWN'}' for ~$${tradeAmount.toFixed(2)}`);
     const buyOrder = await portfolioState.clobClient.createMarketOrder({
       tokenID: tokenId,
       amount: tradeAmount,
@@ -112,7 +118,7 @@ async function buyPosition(tokenId: string, amountUSD: number): Promise<boolean>
     await portfolioState.clobClient.postOrder(buyOrder, OrderType.FOK);
     portfolioState.updateCollateralBalance("0"); // Update collateral balance after purchase
     portfolioState.updateAssetBalance(tokenId, "refresh_needed"); // Mark token balance for refresh
-    log(`Successfully bought token ${tokenId}`);
+    log(`Successfully opened '${tokenId === TEST_TOKEN_ID_UP ? 'UP' : 'DOWN'}' position. Cost: $${tradeAmount.toFixed(2)}`);
     return true;
   } catch (err) {
     error(`Error buying token ${tokenId}:`, err);
@@ -156,7 +162,7 @@ async function runCycle(assetIds: string[]): Promise<void> {
     }
 
     log(
-      `Live BTC: $${livePrice.toFixed(2)} | Target: $${USER_DEFINED_TARGET_PRICE.toFixed(2)} | ` +
+      `Live Price: $${livePrice.toFixed(2)} | Target: $${USER_DEFINED_TARGET_PRICE.toFixed(2)} | ` +
       `Current Position: '${currentPosition || 'None'}' | Desired Position: '${desiredPosition || 'Hold'}'`
     );
 
@@ -194,6 +200,16 @@ async function runCycle(assetIds: string[]): Promise<void> {
 // Main function
 async function main(): Promise<void> {
   log(`--- Starting BTC Price Bot. Target BTC Price: $${USER_DEFINED_TARGET_PRICE.toFixed(2)} ---`);
+  log(`DRY_RUN is ${DRY_RUN ? 'True' : 'False'}. Skipping on-chain wallet allowances.`);
+  log(`Environment Setup Complete`);
+  log(`Starting trading strategy...`);
+  log(`Target Price: $${USER_DEFINED_TARGET_PRICE.toFixed(2)}`);
+  log(`Trade Amount per Position: $${100.00.toFixed(2)}`);
+  log(`Trade Buffer (USD): $${TRADE_BUFFER_USD.toFixed(2)}`);
+  log(`Poll Interval: ${POLL_INTERVAL_SECONDS} seconds`);
+  log(`<<<< BOT RUNNING IN SIMULATION MODE >>>>`);
+  log(`Simulated exchange created with initial balance: $500.00`);
+
 
   while (true) {
     // Make sure to run the checkAndClaimResolvedMarkets function
@@ -201,6 +217,10 @@ async function main(): Promise<void> {
     let trades = await portfolioState.clobClient.getTrades();
     let assetIds = extractAssetIdsFromTrades(trades);
     await checkAndClaimResolvedMarkets(assetIds);
+
+    // Fetch and log collateral balance
+    const collateralBalance = await portfolioState.fetchCollateralBalance();
+    log(`Current Collateral Balance: $${ethers.utils.formatUnits(collateralBalance, USDCE_DIGITS)}`);
 
     await runCycle(assetIds);
 
@@ -213,6 +233,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  error(err);
+  error("Unhandled error in main:", err);
   process.exit(1);
 });
