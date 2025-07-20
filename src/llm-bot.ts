@@ -17,7 +17,6 @@ const log = (message: string) => console.log(`${getTimestamp()} - INFO - ${messa
 const error = (message: string, err?: any) => console.error(`${getTimestamp()} - ERROR - ${message}`, err || '');
 
 // Configuration from environment variables
-const DRY_RUN = false; // Bot will now always run in real mode
 const USER_DEFINED_TARGET_PRICE = parseFloat(process.env.USER_DEFINED_TARGET_PRICE || '0');
 const TRADE_BUFFER_USD = parseFloat(process.env.TRADE_BUFFER_USD || '0');
 const POLYMARKET_MARKET_ID = process.env.POLYMARKET_MARKET_ID;
@@ -116,7 +115,11 @@ async function buyPosition(tokenId: string, amountUSD: number): Promise<boolean>
       side: Side.BUY,
     });
     await portfolioState.clobClient.postOrder(buyOrder, OrderType.FOK);
-    portfolioState.updateCollateralBalance("0"); // Update collateral balance after purchase
+    // Update collateral balance after purchase
+    const newCollateralBalance = ethers.BigNumber.from(portfolioState.collateralBalance).sub(
+      parseUnits(tradeAmount.toFixed(USDCE_DIGITS), USDCE_DIGITS)
+    );
+    portfolioState.updateCollateralBalance(newCollateralBalance.toString());
     portfolioState.updateAssetBalance(tokenId, "refresh_needed"); // Mark token balance for refresh
     log(`Successfully opened '${tokenId === TEST_TOKEN_ID_UP ? 'UP' : 'DOWN'}' position. Cost: $${tradeAmount.toFixed(2)}`);
     return true;
@@ -200,24 +203,31 @@ async function runCycle(assetIds: string[]): Promise<void> {
 // Main function
 async function main(): Promise<void> {
   log(`--- Starting BTC Price Bot. Target BTC Price: $${USER_DEFINED_TARGET_PRICE.toFixed(2)} ---`);
-  log(`DRY_RUN is ${DRY_RUN ? 'True' : 'False'}. Skipping on-chain wallet allowances.`);
   log(`Environment Setup Complete`);
   log(`Starting trading strategy...`);
   log(`Target Price: $${USER_DEFINED_TARGET_PRICE.toFixed(2)}`);
-  log(`Trade Amount per Position: $${100.00.toFixed(2)}`);
+  log(`Trade Amount per Position: $${(TRADE_SIZE_PERCENT > 0 ? (FIXED_TRADE_USD_AMOUNT * (TRADE_SIZE_PERCENT / 100.0)) : FIXED_TRADE_USD_AMOUNT).toFixed(2)}`);
   log(`Trade Buffer (USD): $${TRADE_BUFFER_USD.toFixed(2)}`);
   log(`Poll Interval: ${POLL_INTERVAL_SECONDS} seconds`);
-  log(`Simulated exchange created with initial balance: $500.00`);
 
+  // Fetch and log initial collateral balance
+  const initialCollateralBalance = await portfolioState.fetchCollateralBalance();
+  log(`Initial Collateral Balance: $${ethers.utils.formatUnits(initialCollateralBalance, USDCE_DIGITS)}`);
 
   while (true) {
+    const now = dayjs();
+    if (now.hour() === 17 && now.minute() === 10) {
+      log("Stopping bot as it's 17:10.");
+      process.exit(0);
+    }
+
     // Make sure to run the checkAndClaimResolvedMarkets function
     // This is still relevant for any Polymarket activity
     let trades = await portfolioState.clobClient.getTrades();
     let assetIds = extractAssetIdsFromTrades(trades);
     await checkAndClaimResolvedMarkets(assetIds);
 
-    // Fetch and log collateral balance
+    // Fetch and log collateral balance (this will now reflect changes from trades)
     const collateralBalance = await portfolioState.fetchCollateralBalance();
     log(`Current Collateral Balance: $${ethers.utils.formatUnits(collateralBalance, USDCE_DIGITS)}`);
 
