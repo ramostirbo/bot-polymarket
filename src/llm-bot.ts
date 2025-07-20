@@ -17,7 +17,7 @@ const log = (message: string) => console.log(`${getTimestamp()} - INFO - ${messa
 const error = (message: string, err?: any) => console.error(`${getTimestamp()} - ERROR - ${message}`, err || '');
 
 // Configuration from environment variables
-const DRY_RUN = process.env.DRY_RUN?.toLowerCase() === 'true';
+const DRY_RUN = false; // Bot will now always run in real mode
 const USER_DEFINED_TARGET_PRICE = parseFloat(process.env.USER_DEFINED_TARGET_PRICE || '0');
 const TRADE_BUFFER_USD = parseFloat(process.env.TRADE_BUFFER_USD || '0');
 const POLYMARKET_MARKET_ID = process.env.POLYMARKET_MARKET_ID;
@@ -207,7 +207,6 @@ async function main(): Promise<void> {
   log(`Trade Amount per Position: $${100.00.toFixed(2)}`);
   log(`Trade Buffer (USD): $${TRADE_BUFFER_USD.toFixed(2)}`);
   log(`Poll Interval: ${POLL_INTERVAL_SECONDS} seconds`);
-  log(`<<<< BOT RUNNING IN SIMULATION MODE >>>>`);
   log(`Simulated exchange created with initial balance: $500.00`);
 
 
