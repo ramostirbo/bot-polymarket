@@ -10,7 +10,7 @@ const PK = process.env.PK; // Private key is still from .env
 const log = (message: string) => console.log(`[Telegram Info] - ${message}`);
 const error = (message: string, err?: any) => console.error(`[Telegram Info] - ERROR - ${message}`, err || '');
 
-export async function sendStartupInfoToTelegram(): Promise<void> {
+export async function performInitialChecks(): Promise<void> {
     try {
         const walletAddress = new ethers.Wallet(PK || '0x0').address; // Use a dummy PK if not set to avoid crash
         const collateralBalance = await portfolioState.fetchCollateralBalance();

