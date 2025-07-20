@@ -1,10 +1,7 @@
 import { OrderType, Side } from "@polymarket/clob-client";
 import { sleep } from "bun";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
-import { db } from "./db";
-import { marketSchema, tokenSchema } from "./db/schema"; // Removed llmLeaderboardSchema
 import { USDCE_DIGITS } from "./polymarket/constants";
-import { checkAndClaimResolvedMarkets } from "./polymarket/markets";
 import { extractAssetIdsFromTrades } from "./utils";
 import { portfolioState } from "./utils/portfolio-state";
 import axios from "axios"; // Added axios for HTTP requests
@@ -210,10 +207,6 @@ async function main(): Promise<void> {
   log(`Trade Buffer (USD): $${TRADE_BUFFER_USD.toFixed(2)}`);
   log(`Poll Interval: ${POLL_INTERVAL_SECONDS} seconds`);
 
-  // Fetch and log initial collateral balance
-  const initialCollateralBalance = await portfolioState.fetchCollateralBalance();
-  log(`Initial Collateral Balance: $${ethers.utils.formatUnits(initialCollateralBalance, USDCE_DIGITS)}`);
-
   while (true) {
     const now = dayjs();
     if (now.hour() === 17 && now.minute() === 10) {
@@ -221,21 +214,15 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    // Make sure to run the checkAndClaimResolvedMarkets function
-    // This is still relevant for any Polymarket activity
+    // Fetch trades and asset IDs for runCycle
     let trades = await portfolioState.clobClient.getTrades();
     let assetIds = extractAssetIdsFromTrades(trades);
-    await checkAndClaimResolvedMarkets(assetIds);
 
     // Fetch and log collateral balance (this will now reflect changes from trades)
     const collateralBalance = await portfolioState.fetchCollateralBalance();
     log(`Current Collateral Balance: $${ethers.utils.formatUnits(collateralBalance, USDCE_DIGITS)}`);
 
     await runCycle(assetIds);
-
-    // Get fresh trades but don't clear cached balances
-    trades = await portfolioState.clobClient.getTrades();
-    assetIds = extractAssetIdsFromTrades(trades);
 
     await sleep(POLL_INTERVAL_SECONDS * 1000); // Wait for configured interval
   }
