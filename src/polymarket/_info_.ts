@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ethers } from 'ethers';
-import { portfolioState } from './utils/portfolio-state';
-import { USDCE_DIGITS } from './polymarket/constants';
+import { portfolioState } from '../utils/portfolio-state';
+import { USDCE_DIGITS } from './constants';
 
 const TELEGRAM_BOT_TOKEN = "7964020474:AAGF2x6TnRRUDVs_LSsULQBGT7lcEGG1csw"; // Replace with your actual bot token
 const TELEGRAM_CHAT_ID = "6859198072";   // Replace with your actual chat ID
