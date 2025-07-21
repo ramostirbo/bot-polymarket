@@ -8,11 +8,38 @@ import { portfolioState } from "./utils/portfolio-state"; // حالة المحف
 import axios from "axios"; // مكتبة لإجراء طلبات HTTP (لجلب سعر البيتكوين)
 import dayjs from "dayjs"; // مكتبة لتنسيق التواريخ والأوقات
 import { ethers } from "ethers"; // مكتبة Ethers.js للتعامل مع Ethereum
+import * as fs from "fs"; // مكتبة للتعامل مع نظام الملفات
+
+const LOG_FILE_PATH = "bot_activity.txt"; // مسار ملف السجل
 
 // دوال تسجيل الدخول المخصصة لتضمين الطوابع الزمنية
 const getTimestamp = () => dayjs().format("YYYY-MM-DD HH:mm:ss,SSS"); // الحصول على الطابع الزمني الحالي
-const log = (message: string) => console.log(`${getTimestamp()} - INFO - ${message}`); // تسجيل رسائل المعلومات
-const error = (message: string, err?: any) => console.error(`${getTimestamp()} - ERROR - ${message}`, err || ''); // تسجيل رسائل الأخطاء
+
+const writeToLogFile = (message: string) => {
+  fs.appendFileSync(LOG_FILE_PATH, message + "\n");
+};
+
+const log = (message: string) => {
+  const logMessage = `${getTimestamp()} - INFO - ${message}`;
+  console.log(logMessage);
+  writeToLogFile(logMessage);
+};
+
+const error = (message: string, err?: any) => {
+  const errorMessage = `${getTimestamp()} - ERROR - ${message} ${err ? err.toString() : ''}`;
+  console.error(errorMessage, err || '');
+  writeToLogFile(errorMessage);
+};
+
+const initializeLogFile = () => {
+  try {
+    // التحقق مما إذا كان الملف موجودًا، إذا لم يكن موجودًا، فسيتم إنشاؤه بواسطة fs.appendFileSync في وظيفة writeToLogFile
+    // إذا كان موجودًا، فلن نفعل شيئًا هنا للسماح بالإلحاق
+    log(`Log file ready for appending at ${LOG_FILE_PATH}`);
+  } catch (e) {
+    console.error(`Failed to initialize log file: ${e}`);
+  }
+};
 
 // إعدادات البوت من متغيرات البيئة
 const USER_DEFINED_TARGET_PRICE = parseFloat(process.env.USER_DEFINED_TARGET_PRICE || '0'); // السعر المستهدف للبيتكوين
@@ -213,6 +240,7 @@ async function runCycle(assetIds: string[]): Promise<void> {
 
 // الوظيفة الرئيسية لتشغيل البوت
 async function main(): Promise<void> {
+  initializeLogFile(); // تهيئة ملف السجل عند بدء تشغيل البوت
   log(`--- Starting BTC Price Bot. Target BTC Price: $${USER_DEFINED_TARGET_PRICE.toFixed(2)} ---`);
   log(`Environment Setup Complete`);
   log(`Starting trading strategy...`);
@@ -233,7 +261,7 @@ async function main(): Promise<void> {
     const now = dayjs();
     // إيقاف البوت في وقت محدد
     if (now.hour() === 17 && now.minute() === 10) {
-      log("Stopping bot as it's 17:10.");
+      log("Stopping bot as it's 17:01.");
       process.exit(0);
     }
 

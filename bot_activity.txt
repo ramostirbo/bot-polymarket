@@ -1,0 +1,73 @@
+2025-07-21 17:35:23,852 - INFO - Log file initialized at bot_activity.txt
+2025-07-21 17:35:23,855 - INFO - --- Starting BTC Price Bot. Target BTC Price: $118701.94 ---
+2025-07-21 17:35:23,855 - INFO - Environment Setup Complete
+2025-07-21 17:35:23,856 - INFO - Starting trading strategy...
+2025-07-21 17:35:23,856 - INFO - Target Price: $118701.94
+2025-07-21 17:35:23,857 - INFO - Trade Amount per Position: $2.00
+2025-07-21 17:35:23,858 - INFO - Trade Buffer (USD): $20.00
+2025-07-21 17:35:23,859 - INFO - Poll Interval: 15 seconds
+2025-07-21 17:35:25,204 - INFO - Current Collateral Balance: $0.0
+2025-07-21 17:35:25,709 - INFO - No active positions found above minimum threshold for UP/DOWN tokens.
+2025-07-21 17:35:25,710 - INFO - Live Price: $118024.39 | Target: $118701.94 | Current Position: 'None' | Desired Position: 'DOWN'
+2025-07-21 17:35:25,711 - INFO - 🚨 Position change detected: From 'None' to 'DOWN'
+2025-07-21 17:35:25,838 - INFO - No collateral available for buying.
+2025-07-21 17:37:23,084 - INFO - Log file ready for appending at bot_activity.txt
+2025-07-21 17:37:23,087 - INFO - --- Starting BTC Price Bot. Target BTC Price: $118701.94 ---
+2025-07-21 17:37:23,088 - INFO - Environment Setup Complete
+2025-07-21 17:37:23,088 - INFO - Starting trading strategy...
+2025-07-21 17:37:23,089 - INFO - Target Price: $118701.94
+2025-07-21 17:37:23,090 - INFO - Trade Amount per Position: $2.00
+2025-07-21 17:37:23,091 - INFO - Trade Buffer (USD): $20.00
+2025-07-21 17:37:23,091 - INFO - Poll Interval: 15 seconds
+2025-07-21 17:37:24,188 - INFO - Current Collateral Balance: $0.0
+2025-07-21 17:37:24,679 - INFO - No active positions found above minimum threshold for UP/DOWN tokens.
+2025-07-21 17:37:24,680 - INFO - Live Price: $118064.61 | Target: $118701.94 | Current Position: 'None' | Desired Position: 'DOWN'
+2025-07-21 17:37:24,680 - INFO - 🚨 Position change detected: From 'None' to 'DOWN'
+2025-07-21 17:37:24,884 - INFO - No collateral available for buying.
+2025-07-21 17:37:40,151 - INFO - Current Collateral Balance: $0.0
+2025-07-21 17:37:40,433 - INFO - No active positions found above minimum threshold for UP/DOWN tokens.
+2025-07-21 17:37:40,434 - INFO - Live Price: $118012.60 | Target: $118701.94 | Current Position: 'None' | Desired Position: 'DOWN'
+2025-07-21 17:37:40,435 - INFO - 🚨 Position change detected: From 'None' to 'DOWN'
+2025-07-21 17:37:40,554 - INFO - No collateral available for buying.
+2025-07-21 17:37:50,890 - INFO - Log file ready for appending at bot_activity.txt
+2025-07-21 17:37:50,892 - INFO - --- Starting BTC Price Bot. Target BTC Price: $118701.94 ---
+2025-07-21 17:37:50,901 - INFO - Environment Setup Complete
+2025-07-21 17:37:50,902 - INFO - Starting trading strategy...
+2025-07-21 17:37:50,903 - INFO - Target Price: $118701.94
+2025-07-21 17:37:50,904 - INFO - Trade Amount per Position: $2.00
+2025-07-21 17:37:50,905 - INFO - Trade Buffer (USD): $20.00
+2025-07-21 17:37:50,905 - INFO - Poll Interval: 15 seconds
+2025-07-21 17:37:51,953 - INFO - Current Collateral Balance: $0.0
+2025-07-21 17:37:52,370 - INFO - No active positions found above minimum threshold for UP/DOWN tokens.
+2025-07-21 17:37:52,372 - INFO - Live Price: $117970.01 | Target: $118701.94 | Current Position: 'None' | Desired Position: 'DOWN'
+2025-07-21 17:37:52,375 - INFO - 🚨 Position change detected: From 'None' to 'DOWN'
+2025-07-21 17:37:52,540 - INFO - No collateral available for buying.
+2025-07-21 18:01:54,615 - INFO - Log file ready for appending at bot_activity.txt
+2025-07-21 18:01:54,618 - INFO - --- Starting BTC Price Bot. Target BTC Price: $118339.83 ---
+2025-07-21 18:01:54,619 - INFO - Environment Setup Complete
+2025-07-21 18:01:54,619 - INFO - Starting trading strategy...
+2025-07-21 18:01:54,621 - INFO - Target Price: $118339.83
+2025-07-21 18:01:54,623 - INFO - Trade Amount per Position: $2.00
+2025-07-21 18:01:54,624 - INFO - Trade Buffer (USD): $25.00
+2025-07-21 18:01:54,624 - INFO - Poll Interval: 15 seconds
+2025-07-21 18:01:55,748 - INFO - Current Collateral Balance: $6.65425
+2025-07-21 18:01:56,158 - INFO - No active positions found above minimum threshold for UP/DOWN tokens.
+2025-07-21 18:01:56,159 - INFO - Live Price: $117756.09 | Target: $118339.83 | Current Position: 'None' | Desired Position: 'DOWN'
+2025-07-21 18:01:56,159 - INFO - 🚨 Position change detected: From 'None' to 'DOWN'
+2025-07-21 18:01:56,291 - INFO - Opening new position 'DOWN' for ~$2.00
+2025-07-21 18:01:56,881 - INFO - Successfully opened 'DOWN' position. Cost: $2.00
+2025-07-21 18:02:12,220 - INFO - Current Collateral Balance: $4.654251
+2025-07-21 18:02:12,673 - INFO - Found active position: 'DOWN' (3.278687 shares)
+2025-07-21 18:02:12,674 - INFO - Live Price: $117726.49 | Target: $118339.83 | Current Position: 'DOWN' | Desired Position: 'DOWN'
+2025-07-21 18:02:27,938 - INFO - Current Collateral Balance: $4.654251
+2025-07-21 18:02:28,207 - INFO - Found active position: 'DOWN' (3.278687 shares)
+2025-07-21 18:02:28,207 - INFO - Live Price: $117756.93 | Target: $118339.83 | Current Position: 'DOWN' | Desired Position: 'DOWN'
+2025-07-21 18:02:43,474 - INFO - Current Collateral Balance: $4.654251
+2025-07-21 18:02:43,743 - INFO - Found active position: 'DOWN' (3.278687 shares)
+2025-07-21 18:02:43,744 - INFO - Live Price: $117810.16 | Target: $118339.83 | Current Position: 'DOWN' | Desired Position: 'DOWN'
+2025-07-21 18:02:59,181 - INFO - Current Collateral Balance: $4.654251
+2025-07-21 18:02:59,451 - INFO - Found active position: 'DOWN' (3.278687 shares)
+2025-07-21 18:02:59,452 - INFO - Live Price: $117810.18 | Target: $118339.83 | Current Position: 'DOWN' | Desired Position: 'DOWN'
+2025-07-21 18:03:14,716 - INFO - Current Collateral Balance: $4.654251
+2025-07-21 18:03:14,986 - INFO - Found active position: 'DOWN' (3.278687 shares)
+2025-07-21 18:03:14,986 - INFO - Live Price: $117791.37 | Target: $118339.83 | Current Position: 'DOWN' | Desired Position: 'DOWN'
