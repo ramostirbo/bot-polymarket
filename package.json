@@ -33,6 +33,7 @@
     "drizzle-orm": "^0.44.2",
     "ethers": "^5.8.0",
     "puppeteer-real-browser": "^1.4.2",
+    "terser": "^5.43.1",
     "yaml": "^2.8.0"
   },
   "devDependencies": {
@@ -44,6 +45,6 @@
     "postgres": "^3.4.7"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.8.3"
   }
 }
