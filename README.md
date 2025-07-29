@@ -20,8 +20,8 @@
 افتح الطرفية وانتقل إلى دليل المشروع:
 
 ```bash
-git clone https://github.com/ramostirbo/bot-poly-pro.git
-cd bot-poly-pro
+git clone https://github.com/ramostirbo/bot-polymarket.git
+cd bot-polymarket
 bun install
 ```
 
